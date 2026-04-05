@@ -5,6 +5,7 @@ import PrivateRoute from './components/PrivateRoute';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import InterviewApp from './pages/InterviewApp';
+import Dashboard from './pages/Dashboard';           // ← NEW
 import './App.css';
 
 export default function App() {
@@ -19,6 +20,15 @@ export default function App() {
             element={
               <PrivateRoute>
                 <InterviewApp />
+              </PrivateRoute>
+            }
+          />
+          {/* ── NEW: Dashboard route ── */}
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute>
+                <Dashboard />
               </PrivateRoute>
             }
           />

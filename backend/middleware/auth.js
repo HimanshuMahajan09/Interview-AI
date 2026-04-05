@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-module.exports = async (req, res, next) => {
+// Export as { protect } so every route can do: const { protect } = require('../middleware/auth')
+const protect = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ message: 'No token. Authorization denied.' });
@@ -16,3 +17,5 @@ module.exports = async (req, res, next) => {
     res.status(401).json({ message: 'Token is not valid.' });
   }
 };
+
+module.exports = { protect };

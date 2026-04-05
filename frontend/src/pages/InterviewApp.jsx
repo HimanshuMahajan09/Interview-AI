@@ -43,52 +43,64 @@ export default function InterviewApp() {
 
   // Form state
   const [interviewType, setInterviewType] = useState('software');
-  const [numQ, setNumQ]                   = useState(5);
-  const [targetRole, setTargetRole]       = useState('');
-  const [userBg, setUserBg]               = useState('');
-  const [difficulty, setDifficulty]       = useState('Junior');
-  const [mode, setMode]                   = useState('voice');
+  const [numQ, setNumQ] = useState(5);
+  const [targetRole, setTargetRole] = useState('');
+  const [userBg, setUserBg] = useState('');
+  const [difficulty, setDifficulty] = useState('Junior');
+  const [mode, setMode] = useState('voice');
+
+  // ── NEW: Feature state ────────────────────────────────────────────────────
+  const [persona, setPersona] = useState('friendly');
+  const [resumeText, setResumeText] = useState('');
+  const [resumeUploaded, setResumeUploaded] = useState(false);
+  const [jdText, setJdText] = useState('');
+  const [jdExpanded, setJdExpanded] = useState(false);
+  const [followUpQuestion, setFollowUpQuestion] = useState('');
+  const [followUpAnswer, setFollowUpAnswer] = useState('');
+  const [showFollowUp, setShowFollowUp] = useState(false);
+  const [followUpSubmitted, setFollowUpSubmitted] = useState(false);
+  const [streakInfo, setStreakInfo] = useState(null);
 
   // Interview UI state
-  const [timerDisplay, setTimerDisplay]   = useState('02:00');
-  const [timerClass, setTimerClass]       = useState('');
-  const [progPct, setProgPct]             = useState(0);
-  const [progLabel, setProgLabel]         = useState('Q 0/0');
-  const [qText, setQText]                 = useState('Loading…');
-  const [qHint, setQHint]                 = useState('');
-  const [hintVisible, setHintVisible]     = useState(false);
-  const [transcript, setTranscript]       = useState({ final: '', interim: '' });
-  const [wordCount, setWordCount]         = useState(0);
-  const [isListening, setIsListening]     = useState(false);
-  const [micLabel, setMicLabel]           = useState('Press mic to record');
-  const [answerBox, setAnswerBox]         = useState('');
-  const [charCount, setCharCount]         = useState(0);
-  const [fbVisible, setFbVisible]         = useState(false);
-  const [fbContent, setFbContent]         = useState('');
+  const [timerDisplay, setTimerDisplay] = useState('02:00');
+  const [timerClass, setTimerClass] = useState('');
+  const [progPct, setProgPct] = useState(0);
+  const [progLabel, setProgLabel] = useState('Q 0/0');
+  const [qText, setQText] = useState('Loading…');
+  const [qHint, setQHint] = useState('');
+  const [hintVisible, setHintVisible] = useState(false);
+  const [transcript, setTranscript] = useState({ final: '', interim: '' });
+  const [wordCount, setWordCount] = useState(0);
+  const [isListening, setIsListening] = useState(false);
+  const [micLabel, setMicLabel] = useState('Press mic to record');
+  const [answerBox, setAnswerBox] = useState('');
+  const [charCount, setCharCount] = useState(0);
+  const [fbVisible, setFbVisible] = useState(false);
+  const [fbContent, setFbContent] = useState('');
   const [submitDisabled, setSubmitDisabled] = useState(false);
-  const [nextVisible, setNextVisible]     = useState(false);
+  const [nextVisible, setNextVisible] = useState(false);
   const [startDisabled, setStartDisabled] = useState(false);
-  const [startBtnText, setStartBtnText]   = useState('🎙️ Start Voice Interview →');
-  const [micBadge, setMicBadge]           = useState({ cls: 'mic-badge mic-ok', text: 'Checking…' });
-  const [toast, setToast]                 = useState({ visible: false, msg: '', type: 'info' });
-  const [typeBadge, setTypeBadge]         = useState('—');
-  const [diffBadge, setDiffBadge]         = useState('—');
-  const [recVisible, setRecVisible]       = useState(false);
+  const [startBtnText, setStartBtnText] = useState('🎙️ Start Voice Interview →');
+  const [micBadge, setMicBadge] = useState({ cls: 'mic-badge mic-ok', text: 'Checking…' });
+  const [toast, setToast] = useState({ visible: false, msg: '', type: 'info' });
+  const [typeBadge, setTypeBadge] = useState('—');
+  const [diffBadge, setDiffBadge] = useState('—');
+  const [recVisible, setRecVisible] = useState(false);
 
   // Results state
-  const [overallScore, setOverallScore]   = useState('—');
-  const [verdict, setVerdict]             = useState('—');
-  const [metricsHtml, setMetricsHtml]     = useState('');
-  const [reviewHtml, setReviewHtml]       = useState('');
-  const [tipsHtml, setTipsHtml]           = useState('');
+  const [overallScore, setOverallScore] = useState('—');
+  const [verdict, setVerdict] = useState('—');
+  const [metricsHtml, setMetricsHtml] = useState('');
+  const [reviewHtml, setReviewHtml] = useState('');
+  const [tipsHtml, setTipsHtml] = useState('');
 
   // Refs
-  const SRef         = useRef(S);
-  const waveBarRefs  = useRef([]);
-  const waveAnimRef  = useRef(null);
-  const timerRef     = useRef(null);
-  const recognRef    = useRef(null);
-  const isListenRef  = useRef(false);
+  const SRef = useRef(S);
+  const waveBarRefs = useRef([]);
+  const waveAnimRef = useRef(null);
+  const timerRef = useRef(null);
+  const recognRef = useRef(null);
+  const isListenRef = useRef(false);
 
   const updateS = (patch) => {
     setS((prev) => { const n = { ...prev, ...patch }; SRef.current = n; return n; });
@@ -110,6 +122,11 @@ export default function InterviewApp() {
     }
 
     setTimeout(() => setOverlayHidden(true), 1500);
+
+    // ── NEW: Load saved resume from backend ───────────────
+    apiFetch('/resume', {}, token)
+      .then(d => { if (d.resumeText) { setResumeText(d.resumeText); setResumeUploaded(true); } })
+      .catch(() => { });
   }, []);
 
   // ── Toast helper ──────────────────────────────────────────────────────────
@@ -152,7 +169,7 @@ export default function InterviewApp() {
       animateWave(true);
     };
     rec.onend = () => {
-      if (isListenRef.current) { try { rec.start(); } catch (e) {} }
+      if (isListenRef.current) { try { rec.start(); } catch (e) { } }
     };
     rec.onerror = (e) => {
       if (e.error === 'not-allowed') {
@@ -184,12 +201,12 @@ export default function InterviewApp() {
       setMicLabel('Press mic to record');
       setRecVisible(false);
       animateWave(false);
-      try { recognRef.current?.stop(); } catch (e) {}
+      try { recognRef.current?.stop(); } catch (e) { }
     } else {
       if (!SRef.current.speechOK) { showToast('Voice not supported. Use text mode.', 'err'); return; }
       if (!recognRef.current) recognRef.current = setupRecognition();
       isListenRef.current = true;
-      try { recognRef.current.start(); } catch (e) {}
+      try { recognRef.current.start(); } catch (e) { }
     }
   };
 
@@ -235,12 +252,56 @@ export default function InterviewApp() {
     submitAnswer(true);
   };
 
+  // ── NEW: Resume upload handler ────────────────────────────────────────────
+  const handleResumeUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('resume', file);
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/resume/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setResumeText(d.preview || '');
+        setResumeUploaded(true);
+        showToast('✅ Resume uploaded! Questions will be tailored to your experience.', 'info');
+      } else {
+        showToast('Resume upload failed. Try a PDF or .txt file.', 'err');
+      }
+    } catch {
+      showToast('Resume upload failed.', 'err');
+    }
+  };
+
+  const handleRemoveResume = async () => {
+    try {
+      await apiFetch('/resume', { method: 'DELETE' }, token);
+      setResumeText(''); setResumeUploaded(false);
+      showToast('Resume removed.', 'info');
+    } catch { }
+  };
+
   // ── Start interview ───────────────────────────────────────────────────────
   const startInterview = async () => {
     setStartDisabled(true);
     setStartBtnText('Generating questions…');
 
-    const prompt = `Generate ${numQ} ${difficulty} ${interviewType} interview questions${targetRole ? ' for ' + targetRole : ''}${userBg ? '. Candidate background: ' + userBg : ''}. For each question include a short hint. Return ONLY a JSON array: [{"q":"question","hint":"1-sentence hint"},...]`;
+    const personaMap = {
+      friendly: 'You are a friendly, encouraging startup interviewer.',
+      aggressive: 'You are a tough, direct Google-style interviewer who challenges every answer with follow-ups.',
+      formal: 'You are a formal, corporate HR manager who expects structured, professional answers.',
+    };
+
+    const prompt = `${personaMap[persona]}
+Generate ${numQ} ${difficulty} ${interviewType} interview questions${targetRole ? ' for ' + targetRole : ''}.
+${resumeText ? 'Tailor questions specifically to this candidate resume:\n' + resumeText.substring(0, 1500) : ''}
+${jdText ? 'Tailor questions to match this job description:\n' + jdText.substring(0, 1500) : ''}
+${userBg ? 'Candidate background: ' + userBg : ''}
+Return ONLY a JSON array: [{"q":"question","hint":"1-sentence hint"},...]`;
     try {
       const raw = await callClaude(prompt, 'Return only valid JSON arrays, nothing else.');
       const qs = JSON.parse(raw.replace(/```json|```/g, '').trim());
@@ -271,7 +332,7 @@ export default function InterviewApp() {
 
   const loadQuestion = (idx, stateOverride = null) => {
     const st = stateOverride || SRef.current;
-    const q  = st.questions[idx];
+    const q = st.questions[idx];
     if (!q) return;
     setQText(q.q);
     setQHint(q.hint || '');
@@ -283,6 +344,11 @@ export default function InterviewApp() {
     setFbContent('');
     setSubmitDisabled(false);
     setNextVisible(false);
+    // ── NEW: reset follow-up for each question ─────────────
+    setShowFollowUp(false);
+    setFollowUpQuestion('');
+    setFollowUpAnswer('');
+    setFollowUpSubmitted(false);
     const pct = Math.round((idx / st.totalQ) * 100);
     setProgPct(pct);
     setProgLabel(`Q ${idx + 1}/${st.totalQ}`);
@@ -290,7 +356,7 @@ export default function InterviewApp() {
     setIsListening(false);
     setRecVisible(false);
     animateWave(false);
-    try { recognRef.current?.stop(); } catch (e) {}
+    try { recognRef.current?.stop(); } catch (e) { }
     recognRef.current = null;
     startTimer(120);
   };
@@ -303,7 +369,7 @@ export default function InterviewApp() {
       setIsListening(false);
       setRecVisible(false);
       animateWave(false);
-      try { recognRef.current?.stop(); } catch (e) {}
+      try { recognRef.current?.stop(); } catch (e) { }
     }
 
     const combinedAnswer = (transcript.final + ' ' + answerBox).trim();
@@ -318,17 +384,28 @@ export default function InterviewApp() {
 
     try {
       const raw = await callClaude(evalPrompt, 'Return only valid JSON, nothing else.');
-      const fb  = JSON.parse(raw.replace(/```json|```/g, '').trim());
-      fb.score  = Math.max(0, Math.min(100, fb.score));
+      const fb = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      fb.score = Math.max(0, Math.min(100, fb.score));
 
-      const newAnswers   = [...st.answers];   newAnswers[st.currentQ]   = combinedAnswer;
+      const newAnswers = [...st.answers]; newAnswers[st.currentQ] = combinedAnswer;
       const newTranscripts = [...st.transcripts]; newTranscripts[st.currentQ] = transcript.final;
       const newFeedbacks = [...st.feedbacks]; newFeedbacks[st.currentQ] = fb;
-      const newScores    = [...st.scores];    newScores[st.currentQ]    = fb.score;
+      const newScores = [...st.scores]; newScores[st.currentQ] = fb.score;
       updateS({ answers: newAnswers, transcripts: newTranscripts, feedbacks: newFeedbacks, scores: newScores });
 
       setFbContent(renderFeedback(fb));
       setNextVisible(true);
+
+      // ── NEW: Generate follow-up question ─────────────────
+      try {
+        const fuPrompt = `The candidate just answered this interview question: "${st.questions[st.currentQ]?.q}"
+Their answer was: "${combinedAnswer}"
+Ask ONE natural follow-up question that a real interviewer would ask to dig deeper.
+Return only the question text, nothing else.`;
+        const fuQ = await callClaude(fuPrompt);
+        setFollowUpQuestion(fuQ.trim());
+        setShowFollowUp(true);
+      } catch { /* follow-up is optional, silently skip */ }
     } catch (e) {
       setFbContent('<p style="color:var(--danger)">Failed to analyse. Please try again.</p>');
       setSubmitDisabled(false);
@@ -338,11 +415,11 @@ export default function InterviewApp() {
   const renderFeedback = (fb) => {
     const scoreColor = (v) => v >= 75 ? 'var(--accent3)' : v >= 50 ? 'var(--warn)' : 'var(--danger)';
     const chips = [
-      { label: 'Overall',  val: fb.score },
-      { label: 'Clarity',  val: fb.clarity },
-      { label: 'Relevance',val: fb.relevance },
-      { label: 'Depth',    val: fb.depth },
-      { label: 'Comm',     val: fb.communication },
+      { label: 'Overall', val: fb.score },
+      { label: 'Clarity', val: fb.clarity },
+      { label: 'Relevance', val: fb.relevance },
+      { label: 'Depth', val: fb.depth },
+      { label: 'Comm', val: fb.communication },
     ].map(c => `<div class="sc-chip" style="background:${scoreColor(c.val)}18;border:1px solid ${scoreColor(c.val)}33">
       <span class="sc-lbl">${c.label}</span><span class="sc-val" style="color:${scoreColor(c.val)}">${c.val}</span>
     </div>`).join('');
@@ -408,7 +485,7 @@ export default function InterviewApp() {
   const skipQuestion = () => {
     clearInterval(timerRef.current);
     isListenRef.current = false; setIsListening(false);
-    try { recognRef.current?.stop(); } catch (e) {}
+    try { recognRef.current?.stop(); } catch (e) { }
     const st = SRef.current;
     const next = st.currentQ + 1;
     updateS({ currentQ: next });
@@ -431,7 +508,7 @@ export default function InterviewApp() {
     setVerdict(avg >= 85 ? '🏆 Outstanding' : avg >= 70 ? '✅ Strong Candidate' : avg >= 55 ? '📈 Promising — Keep Practicing' : '💪 Needs More Prep');
 
     const allFb = st.feedbacks.filter(Boolean);
-    const avg4  = (k) => allFb.length ? Math.round(allFb.reduce((a, f) => a + (f[k] || 0), 0) / allFb.length) : 0;
+    const avg4 = (k) => allFb.length ? Math.round(allFb.reduce((a, f) => a + (f[k] || 0), 0) / allFb.length) : 0;
     const metrics = [
       { label: 'Clarity', val: avg4('clarity'), color: '#00d4ff' },
       { label: 'Relevance', val: avg4('relevance'), color: '#a78bfa' },
@@ -446,7 +523,7 @@ export default function InterviewApp() {
 
     setReviewHtml(st.questions.map((q, i) => {
       const sc = st.scores[i] || 0;
-      const c  = sc >= 75 ? 'var(--accent3)' : sc >= 50 ? 'var(--warn)' : 'var(--danger)';
+      const c = sc >= 75 ? 'var(--accent3)' : sc >= 50 ? 'var(--warn)' : 'var(--danger)';
       const fb = st.feedbacks[i];
       const errs = fb?.commErrors?.length || 0;
       return `<div class="ri">
@@ -461,15 +538,21 @@ export default function InterviewApp() {
 
     // Save session to backend
     try {
-      await apiFetch('/sessions', {
+      const saved = await apiFetch('/sessions', {
         method: 'POST',
         body: JSON.stringify({
           interviewType: st.interviewType, difficulty: st.difficulty,
           role: st.role, mode: st.mode, totalQ: st.totalQ,
           overallScore: avg, questions: st.questions.map(q => q.q),
           answers: st.answers, scores: st.scores, feedbacks: st.feedbacks,
+          persona,
+          generatedFrom: resumeText ? 'resume' : jdText ? 'jobDescription' : 'default',
         }),
       }, token);
+      // ── NEW: Show streak notification ─────────────────────
+      if (saved?.streak) {
+        setStreakInfo(saved.streak);
+      }
     } catch (e) {
       console.warn('Could not save session:', e.message);
     }
@@ -478,7 +561,7 @@ export default function InterviewApp() {
     const totalErrors = st.feedbacks.filter(Boolean).reduce((a, f) => a + (f.commErrors?.length || 0), 0);
     const tp = `Based on a ${st.difficulty} ${st.interviewType} interview scoring ${avg}% with ${totalErrors} total communication errors, give 4 personalised improvement tips. ONLY JSON array: [{"icon":"emoji","tip":"2 clear sentences"},...]`;
     try {
-      const raw  = await callClaude(tp, 'Return only valid JSON arrays, nothing else.');
+      const raw = await callClaude(tp, 'Return only valid JSON arrays, nothing else.');
       const tips = JSON.parse(raw.replace(/```json|```/g, '').trim());
       setTipsHtml(tips.map(t => `<div class="tip-item"><div class="tip-icon">${t.icon}</div><p>${t.tip}</p></div>`).join(''));
     } catch {
@@ -494,13 +577,19 @@ export default function InterviewApp() {
     clearInterval(timerRef.current);
     isListenRef.current = false;
     setIsListening(false);
-    try { recognRef.current?.stop(); } catch (e) {}
+    try { recognRef.current?.stop(); } catch (e) { }
     window.speechSynthesis?.cancel();
     animateWave(false);
     setStartDisabled(false);
     setStartBtnText(mode === 'voice' ? '🎙️ Start Voice Interview →' : '⌨️ Start Text Interview →');
     setScreen('home');
     updateS(initState());
+    // ── NEW: reset follow-up and streak state ─────────────
+    setShowFollowUp(false);
+    setFollowUpQuestion('');
+    setFollowUpAnswer('');
+    setFollowUpSubmitted(false);
+    setStreakInfo(null);
   };
 
   const handleModeChange = (m) => {
@@ -535,6 +624,13 @@ export default function InterviewApp() {
                 👤 {user.name}
               </span>
             )}
+            {/* ── NEW: Dashboard button ── */}
+            <button
+              onClick={() => navigate('/dashboard')}
+              style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-muted)', fontSize: '0.7rem', padding: '5px 12px', cursor: 'pointer', fontFamily: "'Space Mono', monospace" }}
+            >
+              📊 Dashboard
+            </button>
             <div className={micBadge.cls} id="micBadge">
               {micBadge.cls.includes('ok') && <div className="dot" />}
               <span>{micBadge.text}</span>
@@ -611,6 +707,57 @@ export default function InterviewApp() {
                   <div className="form-group full">
                     <label>Your Background (optional)</label>
                     <textarea placeholder="Describe your experience or skills…" value={userBg} onChange={e => setUserBg(e.target.value)} />
+                  </div>
+
+                  {/* ── NEW: Interviewer Persona ── */}
+                  <div className="form-group full">
+                    <label>Interviewer Persona</label>
+                    <div className="mode-row">
+                      {[['friendly', '😊 Friendly'], ['aggressive', '🔥 Aggressive'], ['formal', '🎩 Formal']].map(([p, label]) => (
+                        <button key={p} className={`mode-opt${persona === p ? ' active' : ''}`} onClick={() => setPersona(p)}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── NEW: Resume Upload ── */}
+                  <div className="form-group full">
+                    <label>Resume — AI tailors questions to your experience (optional)</label>
+                    {resumeUploaded ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--accent3)' }}>✅ Resume loaded</span>
+                        <button className="hint-btn" onClick={handleRemoveResume}>✕ Remove</button>
+                      </div>
+                    ) : (
+                      <input
+                        type="file"
+                        accept=".pdf,.txt"
+                        onChange={handleResumeUpload}
+                        style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}
+                      />
+                    )}
+                  </div>
+
+                  {/* ── NEW: Job Description paste ── */}
+                  <div className="form-group full">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <label style={{ marginBottom: 0 }}>Job Description — paste from LinkedIn/Naukri (optional)</label>
+                      <button className="hint-btn" onClick={() => setJdExpanded(v => !v)}>
+                        {jdExpanded ? '▲ Hide' : '▼ Paste JD'}
+                      </button>
+                    </div>
+                    {jdExpanded && (
+                      <textarea
+                        placeholder="Paste the job description here — Claude will generate questions matching this exact role…"
+                        value={jdText}
+                        onChange={e => setJdText(e.target.value)}
+                        style={{ minHeight: 100 }}
+                      />
+                    )}
+                    {jdText && !jdExpanded && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--accent3)' }}>✅ JD loaded ({jdText.length} chars)</span>
+                    )}
                   </div>
                 </div>
                 <button className="start-btn" disabled={startDisabled} onClick={startInterview}>{startBtnText}</button>
@@ -697,6 +844,39 @@ export default function InterviewApp() {
                 <div dangerouslySetInnerHTML={{ __html: fbContent }} />
               </div>
             )}
+
+            {/* ── NEW: Follow-up question panel ── */}
+            {showFollowUp && (
+              <div className="q-card" style={{ marginTop: 16, borderColor: 'rgba(124,58,237,0.3)' }}>
+                <div className="q-label">
+                  <span>🔄 Follow-up Question</span>
+                  <span style={{ fontSize: '0.6rem', color: 'var(--accent2)' }}>Dig deeper</span>
+                </div>
+                <div className="q-text" style={{ fontSize: '1rem' }}>{followUpQuestion}</div>
+                {!followUpSubmitted ? (
+                  <div style={{ marginTop: 14 }}>
+                    <textarea
+                      placeholder="Answer the follow-up (optional)…"
+                      value={followUpAnswer}
+                      onChange={e => setFollowUpAnswer(e.target.value)}
+                      style={{ width: '100%', minHeight: 70, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text)', padding: 12, fontFamily: "'Space Mono', monospace", fontSize: '0.82rem', resize: 'vertical' }}
+                    />
+                    <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                      <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setFollowUpSubmitted(true)}>
+                        ✓ Submit Follow-up
+                      </button>
+                      <button className="btn btn-sec" onClick={() => setShowFollowUp(false)}>
+                        Skip
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 8, fontSize: '0.78rem', color: 'var(--accent3)' }}>
+                    ✅ Follow-up answer recorded
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -708,6 +888,24 @@ export default function InterviewApp() {
               <div className="score-sub">Overall Score</div>
               <div className="verdict">{verdict}</div>
             </div>
+
+            {/* ── NEW: Streak notification ── */}
+            {streakInfo && (
+              <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '16px 22px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 14 }}>
+                <span style={{ fontSize: '1.8rem' }}>🔥</span>
+                <div>
+                  <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '0.9rem', color: 'var(--warn)' }}>
+                    {streakInfo.current === 1 ? 'Practice streak started!' : `${streakInfo.current}-day streak! Keep it up!`}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3 }}>
+                    Longest streak: {streakInfo.longest} days · Come back tomorrow to continue
+                  </div>
+                </div>
+                <button className="btn btn-sec" style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }} onClick={() => navigate('/dashboard')}>
+                  📊 View Progress
+                </button>
+              </div>
+            )}
             <div className="metrics-grid" dangerouslySetInnerHTML={{ __html: metricsHtml }} />
             <div className="review-section">
               <h2>📋 Full Session Review</h2>
