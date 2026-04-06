@@ -3,22 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/api';
 
-// ── Claude API helper ────────────────────────────────────────────────────────
-async function callClaude(prompt, system = '') {
+// ── Gemini API helper ────────────────────────────────────────────────────────
+async function callGemini(prompt, system = '') {
+  const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
   const body = {
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1000,
-    messages: [{ role: 'user', content: prompt }],
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { maxOutputTokens: 1000 }
   };
-  if (system) body.system = system;
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
+  if (system) {
+    body.systemInstruction = { parts: [{ text: system }] };
+  }
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!r.ok) throw new Error('API ' + r.status);
   const d = await r.json();
-  return d.content.map((c) => c.text || '').join('');
+  return d.candidates[0].content.parts[0].text;
 }
 
 // ── Initial state factory ────────────────────────────────────────────────────
@@ -303,7 +305,7 @@ ${jdText ? 'Tailor questions to match this job description:\n' + jdText.substrin
 ${userBg ? 'Candidate background: ' + userBg : ''}
 Return ONLY a JSON array: [{"q":"question","hint":"1-sentence hint"},...]`;
     try {
-      const raw = await callClaude(prompt, 'Return only valid JSON arrays, nothing else.');
+      const raw = await callGemini(prompt, 'Return only valid JSON arrays, nothing else.');
       const qs = JSON.parse(raw.replace(/```json|```/g, '').trim());
 
       const newS = {
@@ -383,7 +385,7 @@ Return ONLY a JSON array: [{"q":"question","hint":"1-sentence hint"},...]`;
     const evalPrompt = `Interview question: "${st.questions[st.currentQ]?.q}"\nCandidate answer: "${combinedAnswer || '(no answer)'}"\nDifficulty: ${st.difficulty}\n\nEvaluate and return ONLY JSON:\n{"score":0-100,"clarity":0-100,"relevance":0-100,"depth":0-100,"communication":0-100,"strengths":"2 sentences","improvement":"2 sentences","commErrors":[{"type":"grammar|filler|unclear|pacing","original":"exact phrase","correction":"fixed version","explanation":"why"}],"modelAnswer":"3-4 sentence model answer","suggestion":"1 actionable tip"}`;
 
     try {
-      const raw = await callClaude(evalPrompt, 'Return only valid JSON, nothing else.');
+      const raw = await callGemini(evalPrompt, 'Return only valid JSON, nothing else.');
       const fb = JSON.parse(raw.replace(/```json|```/g, '').trim());
       fb.score = Math.max(0, Math.min(100, fb.score));
 
@@ -402,7 +404,7 @@ Return ONLY a JSON array: [{"q":"question","hint":"1-sentence hint"},...]`;
 Their answer was: "${combinedAnswer}"
 Ask ONE natural follow-up question that a real interviewer would ask to dig deeper.
 Return only the question text, nothing else.`;
-        const fuQ = await callClaude(fuPrompt);
+        const fuQ = await callGemini(fuPrompt);
         setFollowUpQuestion(fuQ.trim());
         setShowFollowUp(true);
       } catch { /* follow-up is optional, silently skip */ }
@@ -561,7 +563,7 @@ Return only the question text, nothing else.`;
     const totalErrors = st.feedbacks.filter(Boolean).reduce((a, f) => a + (f.commErrors?.length || 0), 0);
     const tp = `Based on a ${st.difficulty} ${st.interviewType} interview scoring ${avg}% with ${totalErrors} total communication errors, give 4 personalised improvement tips. ONLY JSON array: [{"icon":"emoji","tip":"2 clear sentences"},...]`;
     try {
-      const raw = await callClaude(tp, 'Return only valid JSON arrays, nothing else.');
+      const raw = await callGemini(tp, 'Return only valid JSON arrays, nothing else.');
       const tips = JSON.parse(raw.replace(/```json|```/g, '').trim());
       setTipsHtml(tips.map(t => `<div class="tip-item"><div class="tip-icon">${t.icon}</div><p>${t.tip}</p></div>`).join(''));
     } catch {

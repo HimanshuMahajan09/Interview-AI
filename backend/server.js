@@ -17,7 +17,7 @@ app.use(express.json({ limit: '10mb' }));
 // ── Routes ──────────────────────────────────────────────────
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/sessions', require('./routes/sessions'));
-app.use('/api/resume', require('./routes/Resume'));    // resume upload + JD parser
+app.use('/api/resume', require('./routes/resume'));    // resume upload + JD parser
 app.use('/api/progress', require('./routes/progress')); // dashboard + streak
 
 app.get('/api/health', (_req, res) => res.json({ status: 'OK' }));

@@ -62,7 +62,7 @@ CLIENT_URL=http://localhost:3000
 **`frontend/.env`**
 ```env
 REACT_APP_API_URL=http://localhost:5000/api
-REACT_APP_ANTHROPIC_KEY=sk-ant-xxxxxxxxxxxx
+REACT_APP_GEMINI_API_KEY=sk-ant-xxxxxxxxxxxx
 ```
 
 ### Run
@@ -95,7 +95,7 @@ Backend → http://localhost:5000
 |-------|-----|
 | MongoDB refused | Start `mongod` or check Atlas URI |
 | CORS error | Match `CLIENT_URL` to your React port |
-| Claude 401 | Check `REACT_APP_ANTHROPIC_KEY` in `.env` |
+| Claude 401 | Check `REACT_APP_GEMINI_API_KEY` in `.env` |
 | Mic not working | Allow mic permissions; HTTPS required in production |
 
 ---
