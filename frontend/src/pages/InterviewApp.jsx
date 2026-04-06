@@ -18,7 +18,11 @@ async function callGemini(prompt, system = '') {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error('API ' + r.status);
+  if (!r.ok) {
+    const errText = await r.text();
+    console.error('Google API Error:', r.status, errText);
+    throw new Error('API ' + r.status + ' - ' + errText);
+  }
   const d = await r.json();
   return d.candidates[0].content.parts[0].text;
 }
