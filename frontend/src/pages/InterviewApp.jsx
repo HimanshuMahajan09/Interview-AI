@@ -3,28 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/api';
 
-// ── Gemini API helper ────────────────────────────────────────────────────────
-async function callGemini(prompt, system = '') {
-  const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+// ── Claude API helper ────────────────────────────────────────────────────────
+async function callClaude(prompt, system = '') {
   const body = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { maxOutputTokens: 1000 }
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    messages: [{ role: 'user', content: prompt }],
   };
-  if (system) {
-    body.systemInstruction = { parts: [{ text: system }] };
-  }
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+  if (system) body.system = system;
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    const errText = await r.text();
-    console.error('Google API Error:', r.status, errText);
-    throw new Error('API ' + r.status + ' - ' + errText);
-  }
+  if (!r.ok) throw new Error('API ' + r.status);
   const d = await r.json();
-  return d.candidates[0].content.parts[0].text;
+  return d.content.map((c) => c.text || '').join('');
 }
 
 // ── Initial state factory ────────────────────────────────────────────────────
@@ -66,6 +60,8 @@ export default function InterviewApp() {
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [followUpSubmitted, setFollowUpSubmitted] = useState(false);
   const [streakInfo, setStreakInfo] = useState(null);
+  const [offerLetter, setOfferLetter] = useState(null);   // { decision, title, summary, reasons[], nextSteps, closing }
+  const [offerLoading, setOfferLoading] = useState(false);
 
   // Interview UI state
   const [timerDisplay, setTimerDisplay] = useState('02:00');
@@ -309,7 +305,7 @@ ${jdText ? 'Tailor questions to match this job description:\n' + jdText.substrin
 ${userBg ? 'Candidate background: ' + userBg : ''}
 Return ONLY a JSON array: [{"q":"question","hint":"1-sentence hint"},...]`;
     try {
-      const raw = await callGemini(prompt, 'Return only valid JSON arrays, nothing else.');
+      const raw = await callClaude(prompt, 'Return only valid JSON arrays, nothing else.');
       const qs = JSON.parse(raw.replace(/```json|```/g, '').trim());
 
       const newS = {
@@ -389,7 +385,7 @@ Return ONLY a JSON array: [{"q":"question","hint":"1-sentence hint"},...]`;
     const evalPrompt = `Interview question: "${st.questions[st.currentQ]?.q}"\nCandidate answer: "${combinedAnswer || '(no answer)'}"\nDifficulty: ${st.difficulty}\n\nEvaluate and return ONLY JSON:\n{"score":0-100,"clarity":0-100,"relevance":0-100,"depth":0-100,"communication":0-100,"strengths":"2 sentences","improvement":"2 sentences","commErrors":[{"type":"grammar|filler|unclear|pacing","original":"exact phrase","correction":"fixed version","explanation":"why"}],"modelAnswer":"3-4 sentence model answer","suggestion":"1 actionable tip"}`;
 
     try {
-      const raw = await callGemini(evalPrompt, 'Return only valid JSON, nothing else.');
+      const raw = await callClaude(evalPrompt, 'Return only valid JSON, nothing else.');
       const fb = JSON.parse(raw.replace(/```json|```/g, '').trim());
       fb.score = Math.max(0, Math.min(100, fb.score));
 
@@ -408,7 +404,7 @@ Return ONLY a JSON array: [{"q":"question","hint":"1-sentence hint"},...]`;
 Their answer was: "${combinedAnswer}"
 Ask ONE natural follow-up question that a real interviewer would ask to dig deeper.
 Return only the question text, nothing else.`;
-        const fuQ = await callGemini(fuPrompt);
+        const fuQ = await callClaude(fuPrompt);
         setFollowUpQuestion(fuQ.trim());
         setShowFollowUp(true);
       } catch { /* follow-up is optional, silently skip */ }
@@ -503,6 +499,78 @@ Return only the question text, nothing else.`;
     }
   };
 
+  // ── Mock Offer / Rejection Letter ────────────────────────────────────────
+  const generateOfferLetter = async (avg, st) => {
+    setOfferLoading(true);
+    const allFb = st.feedbacks.filter(Boolean);
+    const totalErrors = allFb.reduce((a, f) => a + (f.commErrors?.length || 0), 0);
+    const strengths = allFb.map(f => f.strengths).filter(Boolean).join(' ');
+    const improvements = allFb.map(f => f.improvement).filter(Boolean).join(' ');
+
+    const prompt = `You are a hiring manager writing a formal interview outcome letter.
+
+Candidate interviewed for: ${st.role || st.interviewType + ' role'}
+Interview type: ${st.difficulty} ${st.interviewType}
+Overall score: ${avg}/100
+Total communication errors: ${totalErrors}
+Key strengths observed: ${strengths.substring(0, 400)}
+Areas for improvement: ${improvements.substring(0, 400)}
+
+Based on the score:
+- 75 and above = offer the job
+- 55 to 74 = move to next round
+- below 55 = reject kindly
+
+Write a realistic, professional hiring decision letter. Return ONLY this JSON:
+{
+  "decision": "offer" | "next_round" | "reject",
+  "subject": "short email subject line",
+  "salutation": "Dear [Candidate],",
+  "opening": "1 sentence — outcome announcement",
+  "body": "2-3 sentences explaining why, referencing their actual performance",
+  "reasons": ["specific reason 1", "specific reason 2", "specific reason 3"],
+  "nextSteps": "1 sentence about what happens next",
+  "closing": "1 warm closing sentence",
+  "signoff": "Regards,\\nThe Hiring Team"
+}`;
+
+    try {
+      const raw = await callClaude(prompt, 'Return only valid JSON, nothing else.');
+      const letter = JSON.parse(raw.replace(/```json|```/g, '').trim());
+      setOfferLetter(letter);
+    } catch {
+      setOfferLetter({
+        decision: avg >= 75 ? 'offer' : avg >= 55 ? 'next_round' : 'reject',
+        subject: avg >= 75 ? 'Interview Outcome — Offer Extended' : avg >= 55 ? 'Interview Outcome — Next Steps' : 'Interview Outcome — Thank You',
+        salutation: 'Dear Candidate,',
+        opening: avg >= 75
+          ? 'We are delighted to inform you that we would like to extend an offer for this position.'
+          : avg >= 55
+            ? 'Thank you for interviewing with us. We would like to move you to the next round.'
+            : 'Thank you for taking the time to interview with us for this position.',
+        body: avg >= 75
+          ? 'Your responses demonstrated strong technical knowledge and clear communication. We were impressed by your structured approach to problem-solving.'
+          : avg >= 55
+            ? 'You showed promising skills and we believe a follow-up technical round would help us better assess your fit for the team.'
+            : 'While we appreciated your enthusiasm, we have decided to move forward with other candidates whose experience more closely matches our current needs.',
+        reasons: avg >= 75
+          ? ['Strong technical knowledge demonstrated', 'Clear and structured communication', 'Good problem-solving approach']
+          : avg >= 55
+            ? ['Solid foundational knowledge', 'Good communication style', 'Needs further technical evaluation']
+            : ['Experience level did not match requirements', 'Communication clarity needs improvement', 'Other candidates were a stronger fit'],
+        nextSteps: avg >= 75
+          ? 'Our team will reach out within 2 business days with the formal offer details.'
+          : avg >= 55
+            ? 'You will receive a calendar invite for the next round within 3 business days.'
+            : 'We encourage you to apply again in the future as you continue to grow your skills.',
+        closing: 'We appreciate the time and effort you invested in this interview process.',
+        signoff: 'Regards,\nThe Hiring Team',
+      });
+    } finally {
+      setOfferLoading(false);
+    }
+  };
+
   // ── Results ───────────────────────────────────────────────────────────────
   const showResults = async () => {
     clearInterval(timerRef.current);
@@ -567,7 +635,7 @@ Return only the question text, nothing else.`;
     const totalErrors = st.feedbacks.filter(Boolean).reduce((a, f) => a + (f.commErrors?.length || 0), 0);
     const tp = `Based on a ${st.difficulty} ${st.interviewType} interview scoring ${avg}% with ${totalErrors} total communication errors, give 4 personalised improvement tips. ONLY JSON array: [{"icon":"emoji","tip":"2 clear sentences"},...]`;
     try {
-      const raw = await callGemini(tp, 'Return only valid JSON arrays, nothing else.');
+      const raw = await callClaude(tp, 'Return only valid JSON arrays, nothing else.');
       const tips = JSON.parse(raw.replace(/```json|```/g, '').trim());
       setTipsHtml(tips.map(t => `<div class="tip-item"><div class="tip-icon">${t.icon}</div><p>${t.tip}</p></div>`).join(''));
     } catch {
@@ -577,6 +645,9 @@ Return only the question text, nothing else.`;
         <div class="tip-item"><div class="tip-icon">🔢</div><p>Quantify achievements. "I reduced load time by 40%" beats "I made things faster".</p></div>
         <div class="tip-item"><div class="tip-icon">⏸️</div><p>Replace filler words with confident pauses — a 2-second pause signals confidence.</p></div>`);
     }
+
+    // ── Generate mock offer / rejection letter ─────────────
+    generateOfferLetter(avg, st);
   };
 
   const restart = () => {
@@ -596,6 +667,8 @@ Return only the question text, nothing else.`;
     setFollowUpAnswer('');
     setFollowUpSubmitted(false);
     setStreakInfo(null);
+    setOfferLetter(null);
+    setOfferLoading(false);
   };
 
   const handleModeChange = (m) => {
@@ -921,6 +994,101 @@ Return only the question text, nothing else.`;
               <h2>🎯 Personalised Improvement Plan</h2>
               <div dangerouslySetInnerHTML={{ __html: tipsHtml }} />
             </div>
+
+            {/* ── Mock Offer / Rejection Letter ── */}
+            {offerLoading && (
+              <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="spinner" />
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Generating your hiring decision letter…</span>
+              </div>
+            )}
+
+            {offerLetter && !offerLoading && (() => {
+              const isOffer = offerLetter.decision === 'offer';
+              const isNextRound = offerLetter.decision === 'next_round';
+              const accentColor = isOffer ? 'var(--accent3)' : isNextRound ? 'var(--warn)' : 'var(--danger)';
+              const bgColor = isOffer ? 'rgba(16,185,129,0.06)' : isNextRound ? 'rgba(245,158,11,0.06)' : 'rgba(239,68,68,0.06)';
+              const borderColor = isOffer ? 'rgba(16,185,129,0.25)' : isNextRound ? 'rgba(245,158,11,0.25)' : 'rgba(239,68,68,0.25)';
+              const icon = isOffer ? '🎉' : isNextRound ? '📋' : '📩';
+              const decisionLabel = isOffer ? 'OFFER EXTENDED' : isNextRound ? 'NEXT ROUND' : 'NOT SELECTED';
+
+              return (
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', marginBottom: 22 }}>
+                  {/* Letter header bar */}
+                  <div style={{ background: bgColor, borderBottom: `1px solid ${borderColor}`, padding: '18px 26px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <span style={{ fontSize: '1.6rem' }}>{icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: '1rem', color: accentColor }}>
+                        Hiring Decision
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                        {offerLetter.subject}
+                      </div>
+                    </div>
+                    <span style={{ padding: '4px 12px', borderRadius: 100, fontSize: '0.6rem', fontWeight: 700, letterSpacing: '1.5px', background: bgColor, color: accentColor, border: `1px solid ${borderColor}` }}>
+                      {decisionLabel}
+                    </span>
+                  </div>
+
+                  {/* Letter body — styled like a real email */}
+                  <div style={{ padding: '28px 32px', fontFamily: 'Space Mono, monospace' }}>
+                    {/* From / To fields */}
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 22, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-dim)' }}>From:</span> hiring@company.ai</div>
+                      <div style={{ marginBottom: 4 }}><span style={{ color: 'var(--text-dim)' }}>To:</span> {user?.email || 'candidate@email.com'}</div>
+                      <div><span style={{ color: 'var(--text-dim)' }}>Subject:</span> {offerLetter.subject}</div>
+                    </div>
+
+                    {/* Salutation */}
+                    <p style={{ fontSize: '0.84rem', color: 'var(--text)', marginBottom: 16, lineHeight: 1.8 }}>
+                      {offerLetter.salutation}
+                    </p>
+
+                    {/* Opening */}
+                    <p style={{ fontSize: '0.84rem', color: 'var(--text)', marginBottom: 16, lineHeight: 1.8, fontWeight: 700 }}>
+                      {offerLetter.opening}
+                    </p>
+
+                    {/* Body */}
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', marginBottom: 20, lineHeight: 1.9 }}>
+                      {offerLetter.body}
+                    </p>
+
+                    {/* Reasons list */}
+                    <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 20px', marginBottom: 20 }}>
+                      <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 10 }}>
+                        {isOffer ? '✅ Key Strengths' : isNextRound ? '📋 Assessment Notes' : '📝 Feedback Notes'}
+                      </div>
+                      {offerLetter.reasons.map((r, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8, fontSize: '0.8rem', color: 'var(--text-dim)', lineHeight: 1.7 }}>
+                          <span style={{ color: accentColor, flexShrink: 0, marginTop: 2 }}>
+                            {isOffer ? '✓' : isNextRound ? '→' : '·'}
+                          </span>
+                          {r}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Next steps */}
+                    <div style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: 8, padding: '12px 16px', marginBottom: 20 }}>
+                      <div style={{ fontSize: '0.62rem', color: accentColor, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 6 }}>Next Steps</div>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-dim)', lineHeight: 1.7, margin: 0 }}>{offerLetter.nextSteps}</p>
+                    </div>
+
+                    {/* Closing */}
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)', marginBottom: 20, lineHeight: 1.8 }}>
+                      {offerLetter.closing}
+                    </p>
+
+                    {/* Sign-off */}
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'pre-line', lineHeight: 1.9 }}>
+                      {offerLetter.signoff}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
             <button className="restart-btn" onClick={restart}>↩ Start New Session</button>
           </div>
         )}

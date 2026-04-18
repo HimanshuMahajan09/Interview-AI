@@ -1,4 +1,4 @@
-const apiKey = 'AIzaSyDEUuPYqX3-GMr5zlfIOrc6jOw9JjFpTSk';
+const apiKey = 'AIzaSyDOEu3IUeZLNn9YFJXSWaCsgiV_CbFBisE';
 fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + apiKey)
   .then(async r => {
     const d = await r.json();

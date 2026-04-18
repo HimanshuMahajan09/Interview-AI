@@ -1,5 +1,5 @@
 const prompt = 'Hello';
-const apiKey = 'AIzaSyBEzvACCguGoLJqDXVCCTh7sdrIb1QFu0E';
+const apiKey = 'AIzaSyCCJirUVpN738a7Ai19ehJchYifkBdL9YY';
 const body = { contents: [{ parts: [{ text: prompt }] }] };
 
 fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + apiKey, {

@@ -26,7 +26,7 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      const data = await apiFetch('/auth/register', {
+      const data = await apiFetch('/auth/signup', {
         method: 'POST',
         body: JSON.stringify({ name: form.name, email: form.email, password: form.password }),
       });
